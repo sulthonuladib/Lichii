@@ -460,6 +460,10 @@ if(UNIX AND NOT APPLE)
     install(TARGETS lichii)
 endif()
 
+if (LICHII_CONSOLE)
+    add_subdirectory(../lichii_console ${CMAKE_CURRENT_BINARY_DIR}/console)
+endif()
+
 if (WIN32 AND NOT LICHII_USE_BUNDLED_QT)
     # Copy the Qt DLLs and plugins next to the executable. WINDEPLOYQT_EXECUTABLE was never set, so
     # this step ran the emulator itself with windeployqt's arguments and failed every build that
@@ -474,7 +478,11 @@ if (WIN32 AND NOT LICHII_USE_BUNDLED_QT)
          CONTENT "[Paths]\nPrefix=.\nPlugins=plugins\n")
     if (WINDEPLOYQT_EXECUTABLE)
         set(LICHII_EXE_DIR "$<TARGET_FILE_DIR:lichii>")
-        add_custom_command(TARGET lichii POST_BUILD COMMAND ${WINDEPLOYQT_EXECUTABLE} "$<TARGET_FILE:lichii>" --dir "${LICHII_EXE_DIR}" --libdir "${LICHII_EXE_DIR}" --plugindir "${LICHII_EXE_DIR}/plugins" --no-compiler-runtime --no-opengl-sw --no-system-d3d-compiler --no-translations --verbose 0)
+        set(LICHII_QML_DEPLOY_ARGS "")
+        if (LICHII_CONSOLE)
+            set(LICHII_QML_DEPLOY_ARGS --qmldir "${CMAKE_CURRENT_SOURCE_DIR}/../lichii_console/qml")
+        endif()
+        add_custom_command(TARGET lichii POST_BUILD COMMAND ${WINDEPLOYQT_EXECUTABLE} "$<TARGET_FILE:lichii>" --dir "${LICHII_EXE_DIR}" --libdir "${LICHII_EXE_DIR}" --plugindir "${LICHII_EXE_DIR}/plugins" ${LICHII_QML_DEPLOY_ARGS} --no-compiler-runtime --no-opengl-sw --no-system-d3d-compiler --no-translations --verbose 0 VERBATIM)
     else()
         message(WARNING "windeployqt not found: copy the Qt DLLs next to the executable yourself")
     endif()

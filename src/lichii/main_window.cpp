@@ -445,7 +445,7 @@ inline static bool isDarkMode() {
 }
 #endif // _WIN32
 
-MainWindow::MainWindow(bool has_broken_vulkan)
+MainWindow::MainWindow(bool has_broken_vulkan, bool console_mode)
     : ui{std::make_unique<Ui::MainWindow>()},
       input_subsystem{std::make_shared<InputCommon::InputSubsystem>()}, user_data_migrator{this} {
     QtCommon::Init(this);
@@ -481,7 +481,7 @@ MainWindow::MainWindow(bool has_broken_vulkan)
 
     // The first launch after an interface update switches to Lichii Dark and explains what moved.
     const bool whats_new_pending =
-        UISettings::values.whats_new_version.GetValue() < WhatsNewDialog::Version;
+        !console_mode && UISettings::values.whats_new_version.GetValue() < WhatsNewDialog::Version;
     if (whats_new_pending) {
         UISettings::values.whats_new_version = WhatsNewDialog::Version;
         UISettings::values.theme =
@@ -510,7 +510,9 @@ MainWindow::MainWindow(bool has_broken_vulkan)
 
     UpdateWindowTitle();
 
-    show();
+    if (!console_mode) {
+        show();
+    }
 
 #ifdef ENABLE_UPDATE_CHECKER
     connect(&update_watcher, &QFutureWatcher<UpdateChecker::CheckResult>::finished, this,
@@ -613,7 +615,9 @@ MainWindow::MainWindow(bool has_broken_vulkan)
     OnCheckFirmwareDecryption(false);
 
 #ifdef __unix__
-    OnCheckGraphicsBackend();
+    if (!console_mode) {
+        OnCheckGraphicsBackend();
+    }
 #endif
 
     // Check for orphaned profiles and reset profile data if necessary
@@ -687,7 +691,7 @@ MainWindow::MainWindow(bool has_broken_vulkan)
     UpdateUITheme();
 
     std::optional<Core::LaunchParams> launch;
-    if (QStringList args = QApplication::arguments(); args.size() >= 2) {
+    if (QStringList args = QApplication::arguments(); !console_mode && args.size() >= 2) {
         QList<QByteArray> qba{};
         for (auto const& e : args)
             qba.push_back(e.toUtf8());
@@ -2998,6 +3002,7 @@ void MainWindow::OnEmulationStopped() {
         game_list->SetScanEnabled(true);
         game_list->PopulateAsync(UISettings::values.game_dirs);
     }
+    emit EmulationEnded();
 }
 
 void MainWindow::ShutdownGame() {
@@ -3073,6 +3078,11 @@ void MainWindow::OnGameListLoadFile(QString game_path, u64 program_id) {
 // TODO(crueter): Common profile selector
 void MainWindow::OnGameListOpenFolder(u64 program_id, GameListOpenTarget target,
                                       const std::string& game_path) {
+    OpenGameFolder(program_id, target, game_path, true);
+}
+
+void MainWindow::OpenGameFolder(u64 program_id, GameListOpenTarget target,
+                                const std::string& game_path, bool create) {
     std::filesystem::path path;
     QString open_target;
 
@@ -3088,7 +3098,9 @@ void MainWindow::OnGameListOpenFolder(u64 program_id, GameListOpenTarget target,
             const auto loader = Loader::GetLoader(*QtCommon::system, file);
 
             FileSys::NACP nacp{};
-            loader->ReadControlData(nacp);
+            if (loader) {
+                loader->ReadControlData(nacp);
+            }
             return std::make_pair(nacp.GetDefaultNormalSaveSize(), nacp.GetDeviceSaveDataSize());
         }
     }();
@@ -3120,7 +3132,8 @@ void MainWindow::OnGameListOpenFolder(u64 program_id, GameListOpenTarget target,
 
         // Only create the folder for games that are known to need it; otherwise an empty
         // directory would be left behind in the wrong place.
-        if ((user_save_size > 0 || device_save_size > 0) && !Common::FS::CreateDirs(path)) {
+        if (create && (user_save_size > 0 || device_save_size > 0) &&
+            !Common::FS::CreateDirs(path)) {
             LOG_ERROR(Frontend, "Unable to create the directories for save data");
         }
 
@@ -3843,6 +3856,7 @@ void MainWindow::OnStartGame() {
 
     discord_rpc->Update();
     Common::FeralGamemode::Start();
+    emit EmulationPausedChanged(false);
 }
 
 void MainWindow::OnRestartGame() {
@@ -3864,6 +3878,7 @@ void MainWindow::OnPauseGame() {
     UpdateMenuState();
     AllowOSSleep();
     Common::FeralGamemode::Stop();
+    emit EmulationPausedChanged(true);
 }
 
 void MainWindow::OnPauseContinueGame() {
@@ -4265,6 +4280,10 @@ void MainWindow::ToggleShowGameName() {
 }
 
 void MainWindow::OnConfigure() {
+    Configure();
+}
+
+void MainWindow::Configure(const QString& section) {
     const auto old_theme = UISettings::values.theme;
     const bool old_discord_presence = UISettings::values.enable_discord_presence.GetValue();
     const auto old_language_index = Settings::values.language_index.GetValue();
@@ -4285,6 +4304,7 @@ void MainWindow::OnConfigure() {
     ConfigureDialog configure_dialog(this, hotkey_registry, input_subsystem.get(),
                                      vk_device_records, *QtCommon::system,
                                      !multiplayer_state->IsHostingPublicRoom());
+    configure_dialog.SelectSection(section);
     connect(&configure_dialog, &ConfigureDialog::LanguageChanged, this,
             &MainWindow::OnLanguageChanged);
     connect(&configure_dialog, &ConfigureDialog::ExternalContentDirsChanged, this,

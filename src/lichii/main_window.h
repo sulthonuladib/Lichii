@@ -173,8 +173,13 @@ private:
     constexpr static int MaxMultiplier = 8;
 };
 
+namespace Horizon {
+class ConsoleApp;
+}
+
 class MainWindow : public QMainWindow {
     Q_OBJECT
+    friend class Horizon::ConsoleApp;
 
     /// Max number of recently loaded items to keep track of
     static const int max_recent_files_item = 10;
@@ -182,7 +187,7 @@ class MainWindow : public QMainWindow {
 public:
     void filterBarSetChecked(bool state);
     void UpdateUITheme();
-    explicit MainWindow(bool has_broken_vulkan);
+    explicit MainWindow(bool has_broken_vulkan, bool console_mode = false);
     ~MainWindow() override;
 
     bool DropAction(QDropEvent* event);
@@ -214,6 +219,8 @@ signals:
      * system emulation handles and memory are still valid, but are about become invalid.
      */
     void EmulationStopping();
+    void EmulationEnded();
+    void EmulationPausedChanged(bool paused);
 
     // Signal that tells widgets to update icons to use the current theme
     void UpdateThemedIcons();
@@ -298,6 +305,9 @@ private:
     void BootGame(const QString& filename, Service::AM::FrontendAppletParameters params,
                   StartGameType with_config = StartGameType::Normal);
     void BootGameFromList(const QString& filename, StartGameType with_config);
+    void Configure(const QString& section = {});
+    void OpenGameFolder(u64 program_id, GameListOpenTarget target, const std::string& game_path,
+                        bool create);
     void ShutdownGame();
     void ExitIfEmulationThreadStuck();
 

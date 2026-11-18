@@ -138,6 +138,9 @@ public:
     static constexpr int FileTypeRole = SortRole + 4;
     /// True when the picture comes from the game or its custom artwork, not the default art.
     static constexpr int HasIconRole = SortRole + 5;
+    static constexpr int PublisherRole = SortRole + 6;
+    static constexpr int VersionRole = SortRole + 7;
+    static constexpr int OriginalArtworkRole = SortRole + 8;
 
     GameListItemPath() = default;
     GameListItemPath(const QString& game_path, const std::vector<u8>& picture_data,

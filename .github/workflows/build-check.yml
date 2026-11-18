@@ -80,7 +80,7 @@ jobs:
           host: linux
           target: desktop
           arch: linux_gcc_64
-          modules: qtcharts
+          modules: qtcharts qtmultimedia
           cache: true
 
       # Objects are keyed by content, so the newest cache of this branch or nx2 always helps;
@@ -110,6 +110,7 @@ jobs:
             -DLICHII_ROOM=OFF \
             -DLICHII_ROOM_STANDALONE=OFF \
             -DLICHII_USE_BUNDLED_QT=OFF \
+            -DLICHII_CONSOLE=ON \
             "-DCMAKE_PREFIX_PATH=$QT_ROOT_DIR" \
             -DLICHII_USE_BUNDLED_SDL3=ON \
             -DVulkanHeaders_FORCE_BUNDLED=ON \
@@ -198,7 +199,7 @@ jobs:
           host: windows
           target: desktop
           arch: win64_msvc2022_64
-          modules: qtcharts
+          modules: qtcharts qtmultimedia
           cache: true
 
       - name: Install ccache
@@ -246,6 +247,7 @@ jobs:
           -DLICHII_ROOM=OFF
           -DLICHII_ROOM_STANDALONE=OFF
           -DLICHII_USE_BUNDLED_QT=OFF
+          -DLICHII_CONSOLE=ON
           -DLICHII_USE_BUNDLED_SDL3=ON
           -DENABLE_UPDATE_CHECKER=ON
           -DUSE_DISCORD_PRESENCE=OFF

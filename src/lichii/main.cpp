@@ -3,15 +3,26 @@
 
 #include <QApplication>
 #include <QMessageBox>
+#include <cstdio>
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
 #include <system_error>
+#include <cstring>
 
 #include "common/fs/fs_paths.h"
 #include "common/fs/path_util.h"
 #include "nx2_switches.h"
 #include "startup_checks.h"
+
+#ifdef LICHII_CONSOLE
+#include "lichii_console/console_app.h"
+#endif
+#ifdef LICHII_CONSOLE_TESTS
+#include <QDir>
+#include <QTemporaryDir>
+#include <optional>
+#endif
 
 #if LICHII_ROOM
 #include <cstring>
@@ -117,6 +128,43 @@ static void SetUpNvidiaShaderDiskCache() {
 #endif
 
 int main(int argc, char* argv[]) {
+    bool console_mode = false;
+#ifdef LICHII_CONSOLE
+    console_mode = argc == 1;
+    bool console_fullscreen = false;
+#ifdef LICHII_CONSOLE_TESTS
+    if (argc > 1 && std::strcmp(argv[1], "--console-settings-readback") == 0) {
+        QCoreApplication app(argc, argv);
+        return Horizon::RunSettingsReadback();
+    }
+    const bool console_smoke = argc > 1 && std::strcmp(argv[1], "--console-smoke-test") == 0;
+    std::optional<QTemporaryDir> smoke_profile;
+    if (console_smoke) {
+        console_mode = true;
+        smoke_profile.emplace();
+        if (!smoke_profile->isValid() || !QDir::setCurrent(smoke_profile->path())) {
+            return EXIT_FAILURE;
+        }
+        const auto base = smoke_profile->path().toLocal8Bit();
+        qputenv("XDG_CONFIG_HOME", QByteArray(base + "/config"));
+        qputenv("XDG_DATA_HOME", QByteArray(base + "/data"));
+        qputenv("XDG_CACHE_HOME", QByteArray(base + "/cache"));
+    }
+#endif
+    if (argc > 1 && std::strcmp(argv[1], "--console") == 0) {
+        console_mode = true;
+        for (int i = 2; i < argc; ++i) {
+            if (std::strcmp(argv[i], "--fullscreen") == 0 || std::strcmp(argv[i], "-f") == 0) {
+                console_fullscreen = true;
+            }
+        }
+    } else if (argc > 1 && std::strcmp(argv[1], "--desktop") == 0) {
+        for (int i = 1; i < argc; ++i) {
+            argv[i] = argv[i + 1];
+        }
+        --argc;
+    }
+#endif
 #if defined(__unix__) && !defined(__APPLE__) && !defined(__ANDROID__)
     SetUpNvidiaShaderDiskCache();
 #endif
@@ -252,10 +300,28 @@ int main(int argc, char* argv[]) {
     setlocale(LC_ALL, "C");
 
     try {
-        MainWindow main_window{has_broken_vulkan};
-        main_window.show();
+        MainWindow main_window{has_broken_vulkan, console_mode};
         app.connect(&app, &QGuiApplication::applicationStateChanged, &main_window,
                     &MainWindow::OnAppFocusStateChanged);
+#ifdef LICHII_CONSOLE
+        if (console_mode) {
+            Horizon::ConsoleApp console{main_window};
+            if (console.initialize(console_fullscreen)) {
+#ifdef LICHII_CONSOLE_TESTS
+                if (console_smoke) {
+                    return Horizon::RunSmokeTest(console);
+                }
+#endif
+                return app.exec();
+            }
+            if (QApplication::arguments().contains(QStringLiteral("--console-smoke-test"))) {
+                return EXIT_FAILURE;
+            }
+            QMessageBox::warning(nullptr, QObject::tr("Lichii Console"),
+                                 QObject::tr("Console mode could not load. Opening desktop mode."));
+        }
+#endif
+        main_window.show();
         return app.exec();
     } catch (const std::exception& exception) {
         QMessageBox::critical(nullptr, QObject::tr("Lichii startup stopped"),

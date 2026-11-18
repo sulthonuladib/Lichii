@@ -57,6 +57,7 @@ public:
     ~ConfigureDialog() override;
 
     void ApplyConfiguration();
+    void SelectSection(const QString& section);
 
     /// Drop the controller edits that were not applied; the Controls tab changes them live.
     void RestoreInputConfiguration();

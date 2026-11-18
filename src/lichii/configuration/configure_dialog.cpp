@@ -285,6 +285,28 @@ void ConfigureDialog::HandleApplyButtonClicked() {
 
 Q_DECLARE_METATYPE(QList<QWidget*>);
 
+void ConfigureDialog::SelectSection(const QString& section) {
+    QWidget* page = nullptr;
+    if (section == QStringLiteral("controllers")) {
+        page = input_tab->GetSubTabs().value(0);
+    } else if (section == QStringLiteral("users")) {
+        page = profile_tab.get();
+    }
+    if (!page) {
+        return;
+    }
+    for (int row = 0; row < ui->selectorList->count(); ++row) {
+        const auto tabs =
+            ui->selectorList->item(row)->data(Qt::UserRole).value<QList<QWidget*>>();
+        const auto index = tabs.indexOf(page);
+        if (index >= 0) {
+            ui->selectorList->setCurrentRow(row);
+            ui->tabWidget->setCurrentIndex(static_cast<int>(index));
+            return;
+        }
+    }
+}
+
 void ConfigureDialog::PopulateSelectionList() {
     const std::array<std::tuple<QString, const char*, QList<QWidget*>>, 6> items{
         {{tr("General"),

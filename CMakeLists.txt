@@ -81,6 +81,8 @@ cmake_dependent_option(LICHII_USE_QT_MULTIMEDIA "Use QtMultimedia for Camera"  O
 cmake_dependent_option(LICHII_USE_QT_WEB_ENGINE "Use QtWebEngine for web applet implementation" OFF "NOT LICHII_USE_BUNDLED_QT" OFF)
 set(LICHII_QT_MIRROR "" CACHE STRING "What mirror to use for downloading the bundled Qt libraries")
 cmake_dependent_option(LICHII_USE_BUNDLED_QT "Download bundled Qt binaries" "${MSVC}" "ENABLE_QT" OFF)
+cmake_dependent_option(LICHII_CONSOLE "Build the Qt Quick console frontend into Lichii" OFF
+    "ENABLE_QT;NOT LICHII_USE_BUNDLED_QT;NOT ANDROID" OFF)
 
 option(ENABLE_DEBUG_TOOLS "Enable debugging tools (maxwell disassembler, SPIRV translator, etc)" OFF)
 option(ENABLE_WERROR "Enable -Werror diagnostics" ON)
@@ -670,6 +672,14 @@ if (ENABLE_QT)
         list(APPEND LICHII_QT_COMPONENTS Multimedia)
     endif()
 
+    if (LICHII_CONSOLE)
+        list(APPEND LICHII_QT_COMPONENTS Qml Quick QuickControls2 Multimedia Svg)
+        if (LICHII_TESTS AND LINUX)
+            list(APPEND LICHII_QT_COMPONENTS Test)
+        endif()
+        list(REMOVE_DUPLICATES LICHII_QT_COMPONENTS)
+    endif()
+
     if (LICHII_USE_QT_WEB_ENGINE)
         list(APPEND LICHII_QT_COMPONENTS WebEngineCore WebEngineWidgets)
     endif()
@@ -679,6 +689,9 @@ if (ENABLE_QT)
     endif()
 
     find_package(Qt6 REQUIRED COMPONENTS ${LICHII_QT_COMPONENTS} OPTIONAL_COMPONENTS ${LICHII_QT_OPTIONAL})
+    if (LICHII_CONSOLE AND Qt6_VERSION VERSION_LESS 6.8)
+        message(FATAL_ERROR "LICHII_CONSOLE requires Qt 6.8 or newer")
+    endif()
     set(QT_MAJOR_VERSION 6)
     # Qt6 sets cxx_std_17 and we need to undo that
     set_target_properties(Qt6::Platform PROPERTIES INTERFACE_COMPILE_FEATURES "")

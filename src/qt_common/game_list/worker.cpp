@@ -15,6 +15,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QRegularExpression>
 #include <QSettings>
 
 #include "common/fs/fs.h"
@@ -130,7 +131,8 @@ void GetMetadataFromControlNCA(const FileSys::PatchManager& patch_manager, const
     std::tie(icon, name) = GetGameListCachedObject(
         fmt::format("{:016X}", patch_manager.GetTitleID()), {}, [&patch_manager, &nca] {
             const auto [nacp, icon_f] = patch_manager.ParseControlNCA(nca);
-            return std::make_pair(icon_f->ReadAllBytes(), nacp->GetApplicationName());
+            return std::make_pair(icon_f ? icon_f->ReadAllBytes() : std::vector<u8>{},
+                                  nacp ? nacp->GetApplicationName() : std::string{});
         });
 }
 
@@ -287,7 +289,8 @@ QList<QStandardItem*> MakeGameListEntry(const std::string& path, const std::stri
                                         Loader::AppLoader& loader, u64 program_id,
                                         const PlayTime::PlayTimeManager& play_time_manager,
                                         const FileSys::PatchManager& patch,
-                                        GameListPatchCache& patch_cache) {
+                                        GameListPatchCache& patch_cache,
+                                        const FileSys::NCA* control = nullptr) {
     auto const file_type = loader.GetFileType();
     auto const file_type_string = QString::fromStdString(Loader::GetFileTypeString(file_type));
 
@@ -297,17 +300,43 @@ QList<QStandardItem*> MakeGameListEntry(const std::string& path, const std::stri
         });
 
     FileSys::NACP nacp{};
+    QString publisher;
+    QString version;
+    std::string display_version;
+    if (loader.ReadDisplayVersion(display_version) == Loader::ResultStatus::Success) {
+        version = QString::fromStdString(display_version);
+    }
+    if (loader.ReadControlData(nacp) == Loader::ResultStatus::Success) {
+        publisher = QString::fromStdString(nacp.GetDeveloperName());
+    } else if (control) {
+        const auto [metadata, unused_icon] = patch.ParseControlNCA(*control);
+        if (metadata) {
+            publisher = QString::fromStdString(metadata->GetDeveloperName());
+            version = QString::fromStdString(metadata->GetVersionString());
+        }
+    }
+    if (publisher.isEmpty() && file_type == Loader::FileType::NX) {
+        std::string value;
+        if (static_cast<Loader::AppLoader_NX&>(loader).ReadPublisher(value) ==
+            Loader::ResultStatus::Success) {
+            publisher = QString::fromStdString(value);
+        }
+    }
     // An NX tree snapshot, like a NUP, is already the updated game: no patch manager update.
-    if ((file_type == Loader::FileType::NUP ||
-         (file_type == Loader::FileType::NX && !loader.IsRomFSUpdatable())) &&
-        loader.ReadControlData(nacp) == Loader::ResultStatus::Success) {
-        const std::string version_string = nacp.GetVersionString();
-        if (!version_string.empty()) {
+    if (file_type == Loader::FileType::NUP ||
+        (file_type == Loader::FileType::NX && !loader.IsRomFSUpdatable())) {
+        if (!version.isEmpty()) {
             if (!patch_versions.isEmpty()) {
                 patch_versions += QLatin1Char('\n');
             }
-            patch_versions += QStringLiteral("Update (%1)").arg(
-                QString::fromStdString(version_string));
+            patch_versions += QStringLiteral("Update (%1)").arg(version);
+        }
+    } else {
+        static const QRegularExpression update{QStringLiteral(R"(^Update \(([^)]+)\))"),
+                                               QRegularExpression::MultilineOption};
+        const auto match = update.match(patch_versions);
+        if (match.hasMatch()) {
+            version = match.captured(1);
         }
     }
 
@@ -316,10 +345,20 @@ QList<QStandardItem*> MakeGameListEntry(const std::string& path, const std::stri
     const std::vector<u8> custom_artwork = QtCommon::Game::ReadCustomArtwork(program_id);
     // So does the name the user gave the game in Properties.
     const std::string custom_title = QtCommon::Game::ReadCustomTitle(program_id);
-    return QList<QStandardItem*>{
+    auto* path_item =
         new GameListItemPath(FormatGameName(path), custom_artwork.empty() ? icon : custom_artwork,
                              QString::fromStdString(custom_title.empty() ? name : custom_title),
-                             file_type_string, program_id, play_time, patch_versions),
+                             file_type_string, program_id, play_time, patch_versions);
+    path_item->setData(publisher, GameListItemPath::PublisherRole);
+    path_item->setData(version, GameListItemPath::VersionRole);
+    constexpr size_t MaxOriginalArtworkBytes = 16 * 1024 * 1024;
+    if (!icon.empty() && icon.size() <= MaxOriginalArtworkBytes) {
+        path_item->setData(
+            QByteArray{reinterpret_cast<const char*>(icon.data()), static_cast<qsizetype>(icon.size())},
+            GameListItemPath::OriginalArtworkRole);
+    }
+    return QList<QStandardItem*>{
+        path_item,
         new GameListItem(file_type_string),
         new GameListItemSize(size),
         new GameListItemPlayTime(play_time),
@@ -436,7 +475,8 @@ void GameListWorker::AddTitlesToGameList(GameListDir* parent_dir, GameListItemTy
         }
 
         auto entry = MakeGameListEntry(file->GetFullPath(), name, file->GetSize(), icon, *loader,
-                                       program_id, play_time_manager, patch, patch_cache);
+                                       program_id, play_time_manager, patch, patch_cache,
+                                       control.get());
         auto pending = std::make_shared<PendingRow>(std::move(entry));
         RecordEvent([=](GameListModel* model) { model->AddEntry(pending->Release(), parent_dir); });
     }

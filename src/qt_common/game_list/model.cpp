@@ -7,6 +7,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QThreadPool>
+#include <utility>
 
 #include "common/logging.h"
 #include "common/settings.h"
@@ -52,13 +53,21 @@ void GameListModel::SetScanEnabled(bool enabled) {
     scan_enabled = enabled;
     if (!enabled) {
         StopWorker();
+        if (std::exchange(populating, false)) {
+            emit PopulatingCancelled();
+        }
     }
+}
+
+bool GameListModel::IsPopulating() const {
+    return populating;
 }
 
 void GameListModel::PopulateAsync(QVector<UISettings::GameDir>& game_dirs) {
     if (!scan_enabled || system.IsPoweredOn()) {
         return;
     }
+    populating = true;
     emit PopulatingStarted();
 
     StopWorker();
@@ -107,6 +116,7 @@ void GameListModel::DonePopulating(const QStringList& watch_list) {
         }
     }
 
+    populating = false;
     emit PopulatingCompleted(watch_list);
 }
 
