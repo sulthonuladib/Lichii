@@ -220,6 +220,7 @@ signals:
      */
     void EmulationStopping();
     void EmulationEnded();
+    void EmulationPresented();
     void EmulationPausedChanged(bool paused);
 
     // Signal that tells widgets to update icons to use the current theme
@@ -345,6 +346,8 @@ private:
      * @return true if the user confirmed
      */
     bool ConfirmClose();
+    void SetConsolePresentation(bool enabled);
+    void StopConfirmedGame(bool show_shutdown_dialog = true);
     bool ConfirmChangeGame();
     bool ConfirmForceLockedExit();
     void RequestGameExit();

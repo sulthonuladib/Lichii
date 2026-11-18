@@ -13,6 +13,7 @@ Item {
     required property var library
     property string sessionState: "idle"
     property date now: new Date()
+    property url profileAvatar
     property string profileName
     property string statusText
     property bool hasNotification
@@ -27,11 +28,10 @@ Item {
     readonly property bool hasGames: gameCount > 0
     readonly property bool hasSession: sessionState !== "idle"
     readonly property string confirmCaption: gameFocused ? (hasSession ? qsTr("Game session") : qsTr("Play"))
-        : addFolderButton.activeFocus ? qsTr("Add folder") : browse.activeFocus ? qsTr("Browse") : qsTr("Open")
+        : addFolderButton.activeFocus ? qsTr("Add folder") : qsTr("Open")
     property Item lastCommand
 
     signal selectGame(var game)
-    signal showLibrary()
     signal addFolder()
     signal gameAction()
     signal optionsRequested()
@@ -159,11 +159,23 @@ Item {
             border.width: profile.activeFocus ? page.theme.focusWidth : 1
             border.color: profile.activeFocus ? page.theme.accent : page.theme.line
         }
-        contentItem: Image {
-            source: page.theme.icon("profile")
-            sourceSize.width: 32
-            sourceSize.height: 32
-            fillMode: Image.PreserveAspectFit
+        contentItem: Item {
+            Image {
+                objectName: "homeProfileAvatar"
+                id: avatar
+                anchors.centerIn: parent
+                width: profile.width - 2 * page.theme.focusWidth
+                height: width
+                source: page.profileAvatar
+                sourceSize: Qt.size(96, 96)
+            }
+            Image {
+                anchors.fill: parent
+                visible: avatar.status !== Image.Ready
+                source: page.theme.icon("profile")
+                sourceSize: Qt.size(48, 48)
+                fillMode: Image.PreserveAspectFit
+            }
         }
     }
 
@@ -185,27 +197,6 @@ Item {
         font.pixelSize: page.theme.homeTitle
         font.weight: Font.DemiBold
         verticalAlignment: Text.AlignVCenter
-    }
-
-    NavButton {
-        id: browse
-        objectName: "allSoftwareAction"
-        x: page.theme.gutter
-        y: page.theme.homeShelfY + page.theme.homeTile + 22
-        compact: true
-        symbol: "library"
-        text: qsTr("All Software")
-        theme: page.theme
-        background: Rectangle {
-            radius: page.theme.radius
-            color: browse.hovered || browse.activeFocus ? page.theme.surface : "transparent"
-            border.color: browse.activeFocus ? page.theme.accent : page.theme.line
-            border.width: browse.activeFocus ? page.theme.focusWidth : 1
-        }
-        Keys.onUpPressed: page.enter()
-        Keys.onLeftPressed: page.enter()
-        Keys.onDownPressed: page.focusCommands()
-        onClicked: page.showLibrary()
     }
 
     Label {
@@ -260,8 +251,6 @@ Item {
         Keys.onRightPressed: {
             if (currentIndex + 1 < count)
                 page.pick(currentIndex + 1)
-            else
-                browse.forceActiveFocus()
         }
         Keys.onUpPressed: profile.forceActiveFocus()
         Keys.onDownPressed: page.focusCommands()
@@ -316,7 +305,6 @@ Item {
         theme: page.theme
         symbol: "folder"
         text: qsTr("Add game folder")
-        Keys.onRightPressed: browse.forceActiveFocus()
         Keys.onUpPressed: profile.forceActiveFocus()
         Keys.onDownPressed: page.focusCommands()
         onClicked: page.addFolder()
@@ -365,7 +353,7 @@ Item {
 
     Rectangle {
         x: page.theme.gutter
-        y: page.theme.homeCommandsY - 16
+        y: page.theme.homeCommandsY - 24
         width: parent.width - 2 * x
         height: 1
         color: page.theme.line
@@ -410,7 +398,7 @@ Item {
                     Accessible.description: slot.unread ? qsTr("Unread notification") : ""
                     KeyNavigation.left: page.commandAt(slot.index - 1)
                     KeyNavigation.right: page.commandAt(slot.index + 1)
-                    Keys.onUpPressed: browse.forceActiveFocus()
+                    Keys.onUpPressed: page.enter()
                     Keys.onReturnPressed: event => { if (!event.isAutoRepeat) clicked() }
                     Keys.onEnterPressed: event => { if (!event.isAutoRepeat) clicked() }
                     onActiveFocusChanged: if (activeFocus) page.lastCommand = command

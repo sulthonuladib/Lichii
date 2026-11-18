@@ -24,6 +24,9 @@ class ConsoleApp final : public QObject {
     Q_PROPERTY(Horizon::Appearance* appearance READ appearance CONSTANT)
     Q_PROPERTY(QString state READ state NOTIFY stateChanged)
     Q_PROPERTY(QString profileName READ profileName NOTIFY settingsChanged)
+    Q_PROPERTY(QUrl profileAvatar READ profileAvatar NOTIFY settingsChanged)
+    Q_PROPERTY(QVariantList profiles READ profiles NOTIFY settingsChanged)
+    Q_PROPERTY(QUrl avatarFolder READ avatarFolder WRITE setAvatarFolder NOTIFY settingsChanged)
     Q_PROPERTY(QString version READ version CONSTANT)
     Q_PROPERTY(bool gamepadHints READ gamepadHints NOTIFY gamepadHintsChanged)
     Q_PROPERTY(bool confirmSouth READ confirmSouth NOTIFY settingsChanged)
@@ -45,6 +48,10 @@ public:
 
     QString state() const;
     QString profileName() const;
+    QUrl profileAvatar() const;
+    QVariantList profiles() const;
+    QUrl avatarFolder() const;
+    void setAvatarFolder(const QUrl& url);
     QString version() const;
     bool gamepadHints() const;
     bool confirmSouth() const;
@@ -58,7 +65,8 @@ public:
     Q_INVOKABLE void launch(const QString& game_path, const QString& program_id = {});
     Q_INVOKABLE void pause();
     Q_INVOKABLE void resume();
-    Q_INVOKABLE void stop();
+    Q_INVOKABLE void stop(bool confirmed = false);
+    Q_INVOKABLE bool stopRequiresConfirmation() const;
     Q_INVOKABLE void quit();
     Q_INVOKABLE void openDesktop();
     Q_INVOKABLE QVariantList settings(const QString& category, const QString& program_id = {});
@@ -70,6 +78,9 @@ public:
     Q_INVOKABLE void openData(const QString& kind);
     Q_INVOKABLE void configureController();
     Q_INVOKABLE void manageProfiles();
+    Q_INVOKABLE bool saveProfileName(const QString& id, const QString& name);
+    Q_INVOKABLE bool saveProfileAvatar(const QString& id, const QUrl& source);
+    Q_INVOKABLE bool activateProfile(const QString& id);
     Q_INVOKABLE void configureGame(const QString& program_id, const QString& game_path);
 
 signals:
@@ -93,6 +104,7 @@ private:
     void sendNavigationKey(int key);
     void setGamepadHints(bool enabled);
     void configureDesktopSection(const QString& section);
+    void registerProfileImages();
 
     MainWindow& desktop;
     QSettings preferences;
@@ -117,6 +129,7 @@ private:
     unsigned held_buttons = 0;
     int held_direction = 0;
     qint64 next_repeat = 0;
+    unsigned avatar_revision = 0;
 };
 
 #ifdef LICHII_CONSOLE_TESTS

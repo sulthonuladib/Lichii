@@ -43,6 +43,7 @@ PanelDialog {
     }
 
     contentItem: ColumnLayout {
+        objectName: "actionDialogContent"
         spacing: 16
         Keys.onEscapePressed: panel.reject()
 

@@ -26,6 +26,7 @@
 #include "lichii_console/console_app.h"
 #include "lichii_console/console_settings.h"
 #include "qt_common/config/qt_config.h"
+#include "qt_common/config/uisettings.h"
 #include "qt_common/game_list/model.h"
 #include "qt_common/qt_common.h"
 
@@ -35,6 +36,10 @@
 
 namespace Horizon {
 namespace {
+
+bool IsWayland() {
+    return QGuiApplication::platformName().startsWith(QStringLiteral("wayland"));
+}
 
 const QStringList& OptionsKeys() {
     static const QStringList keys{QStringLiteral("Menu"), QStringLiteral("F3"),
@@ -92,6 +97,18 @@ ConsoleApp::ConsoleApp(MainWindow& desktop_)
     });
     connect(&desktop, &MainWindow::EmulationStopping, this,
             [this] { setState(State::Stopping); });
+    connect(&desktop, &MainWindow::EmulationPresented, this, [this] {
+        if (!desktop_visible && desktop.render_window->isWindow()) {
+            if (session == State::Running) {
+                showGame();
+            } else if (session == State::Paused) {
+                if (!IsWayland()) {
+                    desktop.render_window->showMinimized();
+                }
+                showConsole();
+            }
+        }
+    });
     connect(&desktop, &MainWindow::EmulationEnded, this, [this] {
         QTimer::singleShot(0, this, [this] {
             if (desktop.boot_in_progress || desktop.emulation_running) {
@@ -124,6 +141,7 @@ bool ConsoleApp::initialize(bool fullscreen) {
     engine = std::make_unique<QQmlApplicationEngine>();
     engine->setInitialProperties({{QStringLiteral("backend"), QVariant::fromValue(this)}});
     engine->addImageProvider(QStringLiteral("game-art"), library_model.createImageProvider());
+    registerProfileImages();
     engine->load(QUrl(QStringLiteral("qrc:/horizon/qml/Main.qml")));
     if (engine->rootObjects().isEmpty()) {
         qCritical("Lichii console: the console interface could not be loaded");
@@ -190,19 +208,22 @@ bool ConsoleApp::confirmSouth() const {
 
 QString ConsoleApp::optionsKey() const {
     const auto& keys = OptionsKeys();
-    const auto key = preferences.value(QStringLiteral("navigation/optionsKey"), keys.first()).toString();
-    return keys.contains(key) ? key : keys.first();
+    const auto default_key = QStringLiteral("F3");
+    const auto key = preferences.value(QStringLiteral("navigation/optionsKey"), default_key).toString();
+    return keys.contains(key) ? key : default_key;
 }
 
 QVariantMap ConsoleApp::gamepadPrompts() const {
     auto* pad = SDL_GetGamepadFromID(controller_id);
     QString options = tr("Start");
     QString home = tr("Guide");
+    QString family = QStringLiteral("generic");
     switch (pad ? SDL_GetGamepadType(pad) : SDL_GAMEPAD_TYPE_UNKNOWN) {
     case SDL_GAMEPAD_TYPE_XBOXONE:
         options = tr("Menu");
         [[fallthrough]];
     case SDL_GAMEPAD_TYPE_XBOX360:
+        family = QStringLiteral("xbox");
         home = tr("Xbox");
         break;
     case SDL_GAMEPAD_TYPE_PS4:
@@ -210,12 +231,14 @@ QVariantMap ConsoleApp::gamepadPrompts() const {
         options = tr("Options");
         [[fallthrough]];
     case SDL_GAMEPAD_TYPE_PS3:
+        family = QStringLiteral("playstation");
         home = tr("PS");
         break;
     case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_PRO:
     case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_LEFT:
     case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_RIGHT:
     case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_PAIR:
+        family = QStringLiteral("nintendo");
         options = QStringLiteral("+");
         home = tr("Home");
         break;
@@ -225,7 +248,11 @@ QVariantMap ConsoleApp::gamepadPrompts() const {
     const auto east = FaceButtonLabel(pad, SDL_GAMEPAD_BUTTON_EAST, tr("East"));
     const auto south = FaceButtonLabel(pad, SDL_GAMEPAD_BUTTON_SOUTH, tr("South"));
     const bool south_confirms = confirmSouth();
-    return {{QStringLiteral("confirm"), south_confirms ? south : east},
+    return {{QStringLiteral("family"), family},
+            {QStringLiteral("library"), pad && SDL_GamepadHasButton(pad, SDL_GAMEPAD_BUTTON_NORTH)
+                                            ? FaceButtonLabel(pad, SDL_GAMEPAD_BUTTON_NORTH, tr("North"))
+                                            : QString{}},
+            {QStringLiteral("confirm"), south_confirms ? south : east},
             {QStringLiteral("back"), south_confirms ? east : south},
             {QStringLiteral("options"), options},
             {QStringLiteral("home"), home}};
@@ -332,7 +359,11 @@ void ConsoleApp::launch(const QString& game_path, const QString& program_id) {
 
     setState(State::Loading);
     QTimer::singleShot(0, this, [this, game_path, program_id] {
-        showGame();
+        desktop.SetConsolePresentation(true);
+        if (IsWayland()) {
+            // Qt creates the native Wayland surface for the renderer under a mapped parent.
+            desktop.show();
+        }
         auto parameters = desktop.ApplicationAppletParameters();
         parameters.program_id = ParseProgramId(program_id);
         desktop.BootGame(game_path, parameters);
@@ -348,6 +379,7 @@ void ConsoleApp::launch(const QString& game_path, const QString& program_id) {
         library_model.markPlayed(game_path, id ? QStringLiteral("%1").arg(id, 16, 16, u'0').toUpper()
                                                : program_id);
         setState(State::Running);
+        showGame();
     });
 }
 
@@ -366,12 +398,19 @@ void ConsoleApp::resume() {
     desktop.OnStartGame();
 }
 
-void ConsoleApp::stop() {
+bool ConsoleApp::stopRequiresConfirmation() const {
+    const auto mode = UISettings::values.confirm_before_stopping.GetValue();
+    return mode == Settings::ConfirmStop::Ask_Always ||
+           (mode == Settings::ConfirmStop::Ask_Based_On_Game && QtCommon::system->GetExitLocked());
+}
+
+void ConsoleApp::stop(bool confirmed) {
     if (session != State::Running && session != State::Paused) {
         return;
     }
-    showGame();
-    desktop.OnStopGame();
+    if (confirmed || desktop.ConfirmShutdownGame()) {
+        desktop.StopConfirmedGame(false);
+    }
     if (desktop.emulation_running && (session == State::Running || session == State::Paused)) {
         exit_requested = false;
         home_requested = false;
@@ -401,6 +440,7 @@ void ConsoleApp::openDesktop() {
         return;
     }
     desktop_visible = true;
+    desktop.SetConsolePresentation(false);
     library_model.refresh();
     showGame();
 }
@@ -419,30 +459,48 @@ void ConsoleApp::openHome() {
     }
     if (session == State::Idle) {
         desktop.hide();
+    } else if (!IsWayland()) {
+        if (desktop.render_window->isWindow()) {
+            desktop.render_window->showMinimized();
+            desktop.hide();
+        } else {
+            desktop.showMinimized();
+        }
     }
     showConsole();
+    QMetaObject::invokeMethod(console_window, "showHome");
 }
 
 void ConsoleApp::showConsole() {
     if (!console_window) {
         return;
     }
-    const bool over_game = session == State::Running || session == State::Paused;
-    console_window->setTransientParent(over_game ? desktop.windowHandle() : nullptr);
+    // Wayland may deny restoring a minimized window. Keep the paused render surface mapped.
+    QWindow* game_window = nullptr;
+    if (IsWayland() && session == State::Paused) {
+        game_window = desktop.render_window->isWindow() && desktop.render_window->isVisible()
+                          ? desktop.render_window->windowHandle()
+                          : desktop.windowHandle();
+    }
+    console_window->setTransientParent(game_window);
     console_window->show();
     console_window->raise();
     console_window->requestActivate();
 }
 
 void ConsoleApp::showGame() {
-    console_window->hide();
-    desktop.show();
-    desktop.raise();
-    if (desktop.render_window->isWindow() && desktop.render_window->isVisible()) {
-        desktop.render_window->activateWindow();
-    } else {
-        desktop.activateWindow();
+    QWidget* window = &desktop;
+    if (!desktop_visible && desktop.render_window->isWindow() &&
+        desktop.render_window->IsLoadingComplete()) {
+        desktop.hide();
+        window = desktop.render_window;
     }
+    window->setWindowState(window->windowState() & ~Qt::WindowMinimized);
+    window->show();
+    window->raise();
+    window->activateWindow();
+    console_window->hide();
+    console_window->setTransientParent(nullptr);
 }
 
 QVariantList ConsoleApp::settings(const QString& category, const QString& program_id) {
@@ -476,7 +534,7 @@ QVariantList ConsoleApp::settings(const QString& category, const QString& progra
         const auto& keys = OptionsKeys();
         QVariantList key_choices;
         for (const auto& key : keys) {
-            key_choices.push_back(key);
+            key_choices.push_back(key == QStringLiteral("Menu") ? tr("Context Menu") : key);
         }
         choice(QStringLiteral("options_key"), tr("Software options key"),
                static_cast<int>(keys.indexOf(optionsKey())), key_choices);
@@ -593,6 +651,7 @@ void ConsoleApp::configureDesktopSection(const QString& section) {
         return;
     }
     desktop.Configure(section);
+    ++avatar_revision;
     emit settingsChanged();
     console_window->requestActivate();
 }
@@ -695,7 +754,8 @@ void ConsoleApp::pollController() {
         unsigned(is_down(south ? SDL_GAMEPAD_BUTTON_SOUTH : SDL_GAMEPAD_BUTTON_EAST)) |
         (unsigned(is_down(south ? SDL_GAMEPAD_BUTTON_EAST : SDL_GAMEPAD_BUTTON_SOUTH)) << 1) |
         (unsigned(is_down(SDL_GAMEPAD_BUTTON_GUIDE)) << 2) |
-        (unsigned(is_down(SDL_GAMEPAD_BUTTON_START)) << 3);
+        (unsigned(is_down(SDL_GAMEPAD_BUTTON_START)) << 3) |
+        (unsigned(is_down(SDL_GAMEPAD_BUTTON_NORTH)) << 4);
     const auto pressed = buttons & ~held_buttons;
     held_buttons = buttons;
 
@@ -718,6 +778,8 @@ void ConsoleApp::pollController() {
         sendNavigationKey(Qt::Key_Escape);
     } else if (pressed & 8) {
         sendNavigationKey(Qt::Key_Menu);
+    } else if (pressed & 16) {
+        sendNavigationKey(Qt::Key_F2);
     }
 
     constexpr int threshold = 16000;

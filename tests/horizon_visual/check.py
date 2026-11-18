@@ -50,11 +50,12 @@ def verify_geometry(path, size, reference):
     if tuple(recorded["window"]) != size:
         return f"actual window size {tuple(recorded['window'])} differs from requested {size}"
     stable_names = {
-        "homeProfile", "homeShelf", "homeAddFolder", "allSoftwareAction", "gameTileCover",
+        "homeProfile", "homeProfileAvatar", "homeShelf", "homeAddFolder", "gameTileCover",
         "settingsNavigation", "homeSystemControl", "consoleFooter", "settingsCategories",
         "settingsValues", "allSoftwareGrid", "libraryControlsAction", "searchGamesField",
         "filterFavoritesAction", "sortLibraryAction", "softwareOptionsDialog",
-        "softwareOptionDetails",
+        "softwareOptionDetails", "avatarPickerContent", "profileAvatarGrid", "applyProfileAvatar",
+        "actionDialogContent",
     }
     geometry = [
         (item["name"], item["bounds"]) for item in recorded["items"]
@@ -120,6 +121,8 @@ def capture(args):
                     expected.append("home-single")
                 if args.sizes:
                     expected.append("library-controls")
+                    if (output / "avatar-picker.png").is_file():
+                        expected += ["profile", "avatar-picker"]
                     if count:
                         expected.append("game-details")
                 if args.sizes and count > 5:

@@ -29,17 +29,20 @@ ApplicationWindow {
     property var contextGame: ({})
     property Item suspendedFocus
     property Item optionsReturnFocus
+    property Item profileReturnFocus
     property bool editingArtwork
     property Item lastFocus
     property string folderPurpose
     property date now: new Date()
     property string lastError
+    property string launchingTitle
+    readonly property bool booting: backend.state === "loading" || backend.state === "stopping"
     readonly property bool gameFocused: activePage === "home" ? home.gameFocused
         : activePage === "library" && allSoftware.gameFocused
     readonly property bool gamepadHints: backend.gamepadHints
-    readonly property bool modalVisible: actionPanel.visible || softwareOptions.visible
+    readonly property bool modalVisible: booting || actionPanel.visible || softwareOptions.visible
         || preview.visible || captures.previewVisible || allSoftware.controlsVisible
-        || folderPicker.visible || artworkPicker.visible
+        || folderPicker.visible || artworkPicker.visible || avatarPicker.visible || editProfile.visible
     readonly property var stateLabels: ({
         idle: qsTr("Ready"),
         loading: qsTr("Starting"),
@@ -54,7 +57,10 @@ ApplicationWindow {
         viewScale: Math.min(app.width / logicalWidth, app.height / logicalHeight)
         confirmKey: app.gamepadHints ? app.backend.gamepadPrompts.confirm : "Enter"
         backKey: app.gamepadHints ? app.backend.gamepadPrompts.back : "Esc"
-        optionsKey: app.gamepadHints ? app.backend.gamepadPrompts.options : app.backend.optionsKey
+        optionsKey: app.gamepadHints ? app.backend.gamepadPrompts.options
+            : app.backend.optionsKey === "Menu" ? qsTr("Context Menu") : app.backend.optionsKey
+        libraryKey: app.gamepadHints ? app.backend.gamepadPrompts.library : "F2"
+        gamepadFamily: app.gamepadHints ? app.backend.gamepadPrompts.family : ""
         homeKey: app.gamepadHints ? app.backend.gamepadPrompts.home : "F1"
     }
     Timer { interval: 1000; running: true; repeat: true; onTriggered: app.now = new Date() }
@@ -140,6 +146,7 @@ ApplicationWindow {
             return
         }
         if (game && game.gamePath) {
+            launchingTitle = game.title || ""
             appearance.play("confirm")
             backend.launch(game.gamePath, game.programId || "")
         }
@@ -237,14 +244,54 @@ ApplicationWindow {
                 action: () => backend.pause() },
             { label: qsTr("Return to Home"), action: () => showHome() },
             { label: qsTr("Stop game"), enabled: canStop,
-                danger: true, action: () => backend.stop() }
+                danger: true, action: () => stopSession() }
         ])
     }
 
-    function showProfile() {
-        ask(qsTr("Profile"), backend.profileName, [
-            { label: qsTr("User settings"), action: () => go("settings", "users") }
-        ])
+    function stopSession() {
+        if (!backend.stopRequiresConfirmation()) {
+            backend.stop()
+            return
+        }
+        ask(qsTr("Close game?"), qsTr("Unsaved progress may be lost."),
+            [{ label: qsTr("Close game"), danger: true, action: () => backend.stop(true) }], true)
+    }
+
+    function showProfiles() {
+        profileReturnFocus = activeFocusItem
+        const users = backend.profiles
+        const actions = users.map(user => ({
+            label: user.name, detail: user.active ? qsTr("Active") : "",
+            action: () => showProfile(user)
+        }))
+        if (!hasSession && users.length < 8)
+            actions.push({ label: qsTr("Add profile"), action: () => showProfileName("", "") })
+        ask(qsTr("User profiles"), "", actions)
+    }
+
+    function showProfile(user) {
+        if (!user)
+            return
+        const actions = [
+            { label: qsTr("Edit name"), enabled: !hasSession,
+                action: () => showProfileName(user.id, user.name) },
+            { label: qsTr("Change avatar"), enabled: !hasSession, action: () => {
+                avatarPicker.profileId = user.id
+                avatarPicker.open()
+            }},
+            { label: qsTr("Use this profile"), enabled: !hasSession && !user.active,
+                action: () => backend.activateProfile(user.id) },
+            { label: qsTr("All profiles"), action: () => showProfiles() }
+        ]
+        ask(user.name, user.active ? qsTr("Active profile") : "", actions, false, "open",
+            user.avatar.toString().length ? user.avatar : tokens.icon("profile"))
+    }
+
+    function showProfileName(id, name) {
+        editProfile.profileId = id
+        editProfile.validationMessage = ""
+        profileNameField.text = name
+        editProfile.open()
     }
 
     function showNotifications() {
@@ -325,7 +372,12 @@ ApplicationWindow {
         sequence: "F1"
         autoRepeat: false
         enabled: !app.modalVisible
-        onActivated: app.showHome()
+        onActivated: {
+            if (app.gamepadHints && app.activePage === "home" && app.backend.state === "paused")
+                app.showSession()
+            else
+                app.showHome()
+        }
     }
     Shortcut { sequence: "F11"; autoRepeat: false; onActivated: app.toggleFullscreen() }
     Shortcut {
@@ -404,6 +456,88 @@ ApplicationWindow {
             preview.open()
         }
     }
+    PanelDialog {
+        id: editProfile
+        theme: tokens
+        title: profileId.length ? qsTr("Edit profile name") : qsTr("Add profile")
+        property string profileId
+        property string validationMessage
+
+        function save() {
+            if (app.backend.saveProfileName(profileId, profileNameField.text)) {
+                app.appearance.play("confirm")
+                close()
+            } else {
+                validationMessage = qsTr("Enter a name that fits in 32 UTF-8 bytes.")
+            }
+        }
+
+        onOpened: {
+            profileNameField.forceActiveFocus()
+            profileNameField.selectAll()
+        }
+        onClosed: app.restorePageFocus(app.profileReturnFocus)
+
+        contentItem: ColumnLayout {
+            spacing: 14
+            TextField {
+                id: profileNameField
+                objectName: "profileNameField"
+                Layout.fillWidth: true
+                Layout.preferredHeight: 50
+                placeholderText: qsTr("Profile name")
+                Accessible.name: placeholderText
+                maximumLength: 32
+                color: tokens.ink
+                placeholderTextColor: tokens.muted
+                selectionColor: tokens.accent
+                selectedTextColor: tokens.accentText
+                font.pixelSize: tokens.bodySize
+                background: Rectangle {
+                    color: tokens.surface
+                    radius: tokens.radius
+                    border.color: profileNameField.activeFocus ? tokens.accent : tokens.line
+                    border.width: profileNameField.activeFocus ? tokens.focusWidth : 1
+                }
+                Keys.onDownPressed: saveProfileName.forceActiveFocus()
+                onAccepted: editProfile.save()
+            }
+            Label {
+                Layout.fillWidth: true
+                visible: text.length > 0
+                text: editProfile.validationMessage
+                color: tokens.danger
+                font.pixelSize: tokens.noteSize
+                wrapMode: Text.WordWrap
+            }
+            RowLayout {
+                Layout.alignment: Qt.AlignRight
+                NavButton {
+                    theme: tokens
+                    text: qsTr("Cancel")
+                    KeyNavigation.right: saveProfileName
+                    KeyNavigation.up: profileNameField
+                    onClicked: editProfile.reject()
+                }
+                NavButton {
+                    id: saveProfileName
+                    theme: tokens
+                    text: qsTr("Save")
+                    emphasized: true
+                    KeyNavigation.up: profileNameField
+                    onClicked: editProfile.save()
+                }
+            }
+        }
+    }
+
+    AvatarPicker {
+        id: avatarPicker
+        theme: tokens
+        backend: app.backend
+        onClosed: app.restorePageFocus(app.profileReturnFocus)
+    }
+
     PanelDialog {
         id: preview
         title: qsTr("Preview game artwork")
@@ -507,6 +641,7 @@ ApplicationWindow {
                 sessionState: app.backend.state
                 now: app.now
                 profileName: app.backend.profileName
+                profileAvatar: app.backend.profileAvatar
                 statusText: app.hasSession ? app.stateLabels[app.backend.state] : ""
                 hasNotification: app.lastError.length > 0
                 networkKnown: app.backend.networkKnown
@@ -518,7 +653,6 @@ ApplicationWindow {
                         app.appearance.play("focus")
                     app.homeGameKey = game.gameKey || ""
                 }
-                onShowLibrary: app.go("library")
                 onAddFolder: app.chooseFolder("add-folder")
                 onGameAction: app.launchGame(home.selectedGame)
                 onOptionsRequested: app.showOptions(home.selectedGame)
@@ -526,7 +660,14 @@ ApplicationWindow {
                 onShowDesktop: app.backend.openDesktop()
                 onShowSettings: app.go("settings")
                 onShowScreenshots: app.go("screenshots")
-                onShowProfile: app.showProfile()
+                onShowProfile: {
+                    app.profileReturnFocus = app.activeFocusItem
+                    const active = app.backend.profiles.find(user => user.active)
+                    if (active)
+                        app.showProfile(active)
+                    else
+                        app.showProfiles()
+                }
                 onShowNotifications: app.showNotifications()
                 onShowPower: app.showPower()
                 onShowSession: app.showSession()
@@ -561,6 +702,7 @@ ApplicationWindow {
                 backend: app.backend
                 onFolderRequested: purpose => app.chooseFolder(purpose)
                 onResetRequested: app.confirmReset(settings.programId)
+                onManageProfilesRequested: app.showProfiles()
                 onBackRequested: app.back()
                 onChoiceRequested: row => app.ask(row.label, row.description || "",
                     Array.from(row.options, (name, index) => ({
@@ -597,6 +739,8 @@ ApplicationWindow {
                     visible: app.gameFocused
                     button: tokens.optionsKey
                     caption: qsTr("Options")
+                    interactive: true
+                    onActivated: app.showOptions(app.activePage === "home" ? home.selectedGame : allSoftware.selection)
                 }
                 Legend {
                     objectName: "backPrompt"
@@ -626,12 +770,12 @@ ApplicationWindow {
                 }
             }
             Legend {
-                visible: !app.modalVisible && (!app.gamepadHints || app.activePage !== "home")
+                visible: !app.modalVisible && button.length > 0
                 anchors.left: parent.left
                 anchors.leftMargin: tokens.gutter
                 anchors.verticalCenter: parent.verticalCenter
                 theme: tokens
-                button: app.activePage === "home" ? "F2" : tokens.homeKey
+                button: app.activePage === "home" ? tokens.libraryKey : tokens.homeKey
                 caption: app.activePage === "home" ? qsTr("All Software") : qsTr("Home")
                 interactive: true
                 onActivated: {
@@ -639,6 +783,35 @@ ApplicationWindow {
                         app.go("library")
                     else
                         app.showHome()
+                }
+            }
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            visible: app.booting
+            color: tokens.background
+
+            MouseArea { anchors.fill: parent }
+            ColumnLayout {
+                anchors.centerIn: parent
+                width: parent.width - 2 * tokens.gutter
+                spacing: 22
+                BusyIndicator {
+                    Layout.alignment: Qt.AlignHCenter
+                    running: app.booting
+                    palette.dark: tokens.accent
+                }
+                Label {
+                    Layout.fillWidth: true
+                    horizontalAlignment: Text.AlignHCenter
+                    text: app.backend.state === "stopping" ? qsTr("Closing game…")
+                        : app.launchingTitle.length ? qsTr("Starting %1…").arg(app.launchingTitle)
+                        : qsTr("Starting game…")
+                    textFormat: Text.PlainText
+                    elide: Text.ElideRight
+                    color: tokens.ink
+                    font.pixelSize: tokens.screenTitle
                 }
             }
         }

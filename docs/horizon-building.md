@@ -16,10 +16,11 @@ Use `build/bin/lichii --console --fullscreen` for a fullscreen start. F11 toggle
 The local build used Clang 23, Ninja, and Qt 6.12. `ENABLE_WERROR=OFF` allows this compiler's warning about the existing `-Wno-error-all` flag.
 
 Arrow keys move focus, Enter confirms, Escape goes back, F1 opens HOME, and F2
-opens All Software from HOME. The Menu key opens software options. Choose an
+opens All Software from HOME. F3 opens software options by default. Choose an
 alternate key in Console Settings → Controllers. On SDL gamepads the left stick
 or D-pad moves focus. The East and South buttons confirm and cancel by default,
-Start opens software options, and Guide opens HOME where supported. Switch the
+Start opens software options, the north face button opens All Software from HOME,
+and Guide opens HOME where supported. Switch the
 confirm and cancel positions in the same settings page. Prompts use the last input
 device and SDL’s reported face-button labels. [SDL button labels](https://wiki.libsdl.org/SDL3/SDL_GetGamepadButtonLabel)
 
@@ -42,7 +43,7 @@ QT_QPA_PLATFORM=wayland LICHII_CONSOLE_TEST_LIBRARY="$fixtures" \
   build/bin/lichii --console-smoke-test
 ```
 
-For a manual game-session check, launch Console, add a game directory, and start a title. Press F1 to bring up the paused HOME window. Use the session controls to resume, then stop the game and confirm that HOME regains focus. The optional `LICHII_CONSOLE_TEST_GAME` points the native Wayland or X11 smoke test at a playable homebrew fixture. The offscreen platform lacks a native presentation surface and skips that scenario.
+For a manual game-session check, launch Console, add a game directory, and start a title. Press F1 to bring up the paused HOME window. Use the session controls to resume, then stop the game and confirm that HOME regains focus. The optional `LICHII_CONSOLE_TEST_GAME` points the native Wayland or X11 smoke test at a playable homebrew fixture. Set `LICHII_CONSOLE_TEST_OPENGL=1` to exercise the same scenario in a build with OpenGL when Vulkan presentation is unavailable. The offscreen platform skips the game scenario.
 
 ## Capture the interface
 

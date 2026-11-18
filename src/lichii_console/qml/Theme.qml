@@ -9,24 +9,24 @@ QtObject {
     readonly property string mode: appearance.effectiveTheme
     readonly property bool dark: mode === "dark"
 
-    readonly property color background: dark ? "#161d23" : "#eff2f4"
-    readonly property color surface: dark ? "#222d35" : "#e2e9ed"
-    readonly property color panel: dark ? "#202a32" : "#f8fafb"
-    readonly property color rail: dark ? "#1b242c" : "#e8edf0"
-    readonly property color hover: dark ? "#2a3942" : "#dae5e9"
-    readonly property color line: dark ? "#3c4b55" : "#c4cfd5"
-    readonly property color lineStrong: dark ? "#53646d" : "#aebfc8"
-    readonly property color ink: dark ? "#edf4f7" : "#1d2c36"
-    readonly property color muted: dark ? "#aabac4" : "#4e626f"
-    readonly property color accent: dark ? "#8fd2de" : "#266e81"
+    readonly property color background: dark ? "#242525" : "#f0f0f0"
+    readonly property color surface: dark ? "#333434" : "#e5e5e5"
+    readonly property color panel: dark ? "#303131" : "#fafafa"
+    readonly property color rail: dark ? "#2b2c2c" : "#e9e9e9"
+    readonly property color hover: dark ? "#404242" : "#dfdfdf"
+    readonly property color line: dark ? "#505252" : "#cacaca"
+    readonly property color lineStrong: dark ? "#676969" : "#b8b9b9"
+    readonly property color ink: dark ? "#f3f3f3" : "#252727"
+    readonly property color muted: dark ? "#b5b8b8" : "#505858"
+    readonly property color accent: dark ? "#91d3da" : "#22687a"
     readonly property color link: accent
     readonly property color selectedText: accent
     readonly property color danger: dark ? "#ffb0a5" : "#a52f28"
-    readonly property color slot: dark ? "#29343d" : "#d8e1e6"
-    readonly property color keyBadge: dark ? "#2a3942" : "#dbe5eb"
+    readonly property color slot: dark ? "#353636" : "#dddddd"
+    readonly property color keyBadge: dark ? "#404242" : "#e3e3e3"
     readonly property color keyBadgeText: ink
     readonly property color accentText: dark ? "#142931" : "#ffffff"
-    readonly property color overlay: "#880b1117"
+    readonly property color overlay: "#880f1010"
 
     readonly property string displayFont: bodyFont
     readonly property string bodyFont: "Noto Sans"
@@ -52,13 +52,15 @@ QtObject {
     readonly property int homeTileGap: 24
     readonly property int homeFocusInset: 5
     readonly property int homeFocusWidth: 3
-    readonly property int homeCommandsY: 528
+    readonly property int homeCommandsY: 505
     readonly property int homeCommandDiameter: 68
     readonly property int keyBadgeSize: 25
 
     property string confirmKey: "Enter"
     property string backKey: "Esc"
-    property string optionsKey: "Menu"
+    property string optionsKey: "F3"
+    property string libraryKey: "F2"
+    property string gamepadFamily
     property string homeKey: "F1"
 
     function icon(name, onAccent = false) {

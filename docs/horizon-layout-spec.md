@@ -11,13 +11,13 @@ dialogs.
 
 | Token | Light | Dark |
 |---|---|---|
-| Background | `#eff2f4` | `#161d23` |
-| Panel | `#f8fafb` | `#202a32` |
-| Command surface | `#e8edf0` | `#1b242c` |
-| Main text | `#1d2c36` | `#edf4f7` |
-| Muted text | `#4e626f` | `#aabac4` |
-| Divider | `#c4cfd5` | `#3c4b55` |
-| Focus accent | `#266e81` | `#8fd2de` |
+| Background | `#f0f0f0` | `#242525` |
+| Panel | `#fafafa` | `#303131` |
+| Command surface | `#e9e9e9` | `#2b2c2c` |
+| Main text | `#252727` | `#f3f3f3` |
+| Muted text | `#505858` | `#b5b8b8` |
+| Divider | `#cacaca` | `#505252` |
+| Focus accent | `#22687a` | `#91d3da` |
 
 The main gutter is 64 px. Theme tokens specify 32 px screen headings, 28 px
 HOME section headings, 23 px section titles, 21 px body text, 18 px compact
@@ -37,8 +37,7 @@ are shared by both palettes. [Theme tokens](../src/lichii_console/qml/Theme.qml)
 | Focused title | 64 | 164 | 1152 × 34 | Shows the focused game title |
 | First cover | 64 | 215 | 216 × 216 | Shelf pitch 240 px, independent of count |
 | Empty action | 64 | 215 | 216 × 216 | Opens a game-folder picker |
-| All Software | 64 | 453 | Intrinsic × 40 | Opens the unfiltered or last-used library view |
-| System shortcuts | Centered | 528 | 68 × 68 per circle | 130 px pitch, caption on focus or hover. |
+| System shortcuts | Centered | 505 | 68 × 68 per circle | 130 px pitch, caption on focus or hover. |
 | Footer | 0 | 664 | 1280 × 56 | Compact contextual prompts aligned to the gutter |
 
 The shelf scrolls horizontally and instantiates visible covers on demand.
@@ -59,5 +58,9 @@ HOME prioritizes up to 16 games. All Software shows the whole library.
 
 Arrows move focus and Enter activates. Escape returns to the previous view
 or cancels the active edit. F1 returns to HOME and F2 opens All Software
-from HOME. The software options key is configurable in Controllers. Button
+from HOME. F3 opens software options by default. The options key is configurable in Controllers. Button
 prompts reflect the latest input and SDL's reported controller type.
+
+The profile header shows the active local user’s saved avatar. The 848 × 608
+avatar picker has a four-column gallery and a separate preview. A user-provided
+folder or image can supply avatar choices.

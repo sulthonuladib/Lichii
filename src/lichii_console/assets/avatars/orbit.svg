@@ -1,0 +1,6 @@
+<!-- SPDX-FileCopyrightText: Copyright 2026 Lichii contributors -->
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <rect width="256" height="256" fill="#272b49"/>
+  <circle cx="128" cy="128" r="57" fill="#c8b7f0"/><ellipse cx="128" cy="128" rx="100" ry="31" transform="rotate(-29 128 128)" fill="none" stroke="#f5d5ae" stroke-width="10"/><circle cx="195" cy="77" r="11" fill="#f5d5ae"/>
+</svg>

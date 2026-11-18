@@ -1,0 +1,6 @@
+<!-- SPDX-FileCopyrightText: Copyright 2026 Lichii contributors -->
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <rect width="256" height="256" fill="#c7e1dc"/>
+  <circle cx="180" cy="78" r="26" fill="#f5e6ac"/><path fill="#2f6567" d="M0 215 89 72l57 91 36-43 74 95v41H0Z"/><path fill="#eef0e8" d="m89 72 27 44-28-12-25 11Z"/>
+</svg>

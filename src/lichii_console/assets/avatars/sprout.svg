@@ -1,0 +1,6 @@
+<!-- SPDX-FileCopyrightText: Copyright 2026 Lichii contributors -->
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <rect width="256" height="256" fill="#e5d6ed"/>
+  <path d="M128 196v-78" stroke="#364c4c" stroke-width="10" stroke-linecap="round"/><path d="M129 142C70 147 50 121 54 80c41-7 67 15 75 62Zm-1-22c49 3 78-22 75-66-42-4-72 25-75 66Z" fill="#4a7566"/><path d="M74 195h108" stroke="#424963" stroke-width="8" stroke-linecap="round"/>
+</svg>

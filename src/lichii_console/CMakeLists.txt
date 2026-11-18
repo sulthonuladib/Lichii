@@ -4,6 +4,7 @@
 target_sources(lichii PRIVATE
     console_app.cpp
     console_app.h
+    console_profiles.cpp
     console_settings.cpp
     console_settings.h
     library_model.cpp

@@ -24,3 +24,13 @@ For each icon, the app looks for `icons/<light-or-dark>/<name>.svg`, then the eq
 For each sound, use `sounds/<name>.wav` with the names listed above. Use uncompressed PCM WAV, preferably mono 16-bit at 48 kHz, with each file under 512 KiB. Short sounds work best during navigation. Missing pack entries use the bundled assets.
 
 Volume, mute, theme, and reduced motion are persisted separately from the game's audio and renderer settings. To regenerate the built-in sounds, run `python3 src/lichii_console/assets/synth_sounds.py` from the repository root.
+
+## Profile avatars
+
+The console includes four original geometric avatars under
+`src/lichii_console/assets/avatars`, licensed GPL-3.0-or-later. Open the
+profile button on HOME and choose **Change avatar** to use a preset, pick a
+local file, or browse an image folder. The console copies the selected
+image as the account’s avatar in the shared emulated NAND. The linked
+public collection describes its images as Nintendo system artwork and
+contains no redistribution license. [Avatar collection](https://github.com/vishans/Nintendo-Switch-Profile-Icons-Avatars)

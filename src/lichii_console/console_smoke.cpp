@@ -75,6 +75,7 @@ private slots:
     void navigation();
     void controllerNavigation();
     void settings();
+    void profiles();
     void libraryAndLifecycle();
 
 private:
@@ -112,10 +113,7 @@ void ConsoleSmoke::navigation() {
     QTRY_VERIFY(item("homeScreen")->isVisible());
     QTRY_VERIFY(settings_navigation->hasActiveFocus());
 
-    auto* all_software = item("allSoftwareAction");
-    QVERIFY(all_software);
-    all_software->forceActiveFocus();
-    QTest::keyClick(window, Qt::Key_Return);
+    QTest::keyClick(window, Qt::Key_F2);
     QTRY_VERIFY(item("libraryScreen") && item("libraryScreen")->isVisible());
     auto* controls = item("libraryControlsAction");
     QVERIFY(controls);
@@ -172,6 +170,11 @@ void ConsoleSmoke::controllerNavigation() {
 
     QTRY_COMPARE(QGuiApplication::focusWindow(), app.window());
     QTest::keyClick(app.window(), Qt::Key_F1);
+    QTRY_VERIFY(item("homeScreen")->isVisible());
+    QVERIFY(SDL_SetJoystickVirtualButton(joystick, SDL_GAMEPAD_BUTTON_NORTH, true));
+    QTRY_VERIFY(item("libraryScreen")->isVisible());
+    QVERIFY(SDL_SetJoystickVirtualButton(joystick, SDL_GAMEPAD_BUTTON_NORTH, false));
+    QTest::keyClick(app.window(), Qt::Key_Escape);
     QTRY_VERIFY(item("homeScreen")->isVisible());
     auto* settings_navigation = item("settingsNavigation");
     QVERIFY(settings_navigation);
@@ -318,20 +321,107 @@ void ConsoleSmoke::settings() {
     QVERIFY(app.setSetting(speed, old_speed, {}));
 }
 
+void ConsoleSmoke::profiles() {
+    auto* window = app.window();
+    const auto profiles = app.profiles();
+    QVERIFY(!profiles.isEmpty());
+    const auto current = profiles.first().toMap();
+    const auto id = current.value(QStringLiteral("id")).toString();
+    const auto original_name = current.value(QStringLiteral("name")).toString();
+    QVERIFY(!id.isEmpty());
+    QVERIFY(!app.saveProfileName(id, QString(33, QLatin1Char('a'))));
+
+    auto* profile = item("homeProfile");
+    QVERIFY(profile);
+    profile->forceActiveFocus();
+    QTest::keyClick(window, Qt::Key_Return);
+    QTRY_VERIFY(item("actionDialogContent") && item("actionDialogContent")->isVisible());
+    QTRY_VERIFY(window->activeFocusItem() &&
+                window->activeFocusItem()->objectName() == QStringLiteral("dialogAction_0"));
+    QTest::keyClick(window, Qt::Key_Return);
+    QTRY_VERIFY(item("profileNameField") && item("profileNameField")->hasActiveFocus());
+    for (const auto character : QByteArrayLiteral("Horizon Player")) {
+        QTest::keyClick(window, character);
+    }
+    QTest::keyClick(window, Qt::Key_Return);
+    QTRY_COMPARE(app.profileName(), QStringLiteral("Horizon Player"));
+    QTRY_VERIFY(profile->hasActiveFocus());
+
+    QTest::keyClick(window, Qt::Key_Return);
+    QTRY_VERIFY(window->activeFocusItem() &&
+                window->activeFocusItem()->objectName() == QStringLiteral("dialogAction_0"));
+    QTest::keyClick(window, Qt::Key_Down);
+    QTest::keyClick(window, Qt::Key_Return);
+    QTRY_VERIFY(item("avatarPickerContent") && item("avatarPickerContent")->isVisible());
+    QTRY_VERIFY(item("profileAvatarGrid") && item("profileAvatarGrid")->hasActiveFocus());
+    auto* apply = item("applyProfileAvatar");
+    QVERIFY(apply);
+    QTRY_VERIFY(apply->isEnabled());
+    QTest::keyClick(window, Qt::Key_Return);
+    QTRY_VERIFY(!app.profileAvatar().isEmpty());
+    QTRY_VERIFY(!item("avatarPickerContent") || !item("avatarPickerContent")->isVisible());
+    QTRY_VERIFY(profile->hasActiveFocus());
+    auto* avatar = item("homeProfileAvatar");
+    QVERIFY(avatar);
+    QTRY_COMPARE(avatar->property("status").toInt(), 1); // Image.Ready
+
+    QTemporaryDir folder;
+    QVERIFY(folder.isValid());
+    const auto url = QUrl::fromLocalFile(folder.filePath(QStringLiteral("avatar.png")));
+    QImage image(48, 64, QImage::Format_RGB32);
+    image.fill(Qt::green);
+    QVERIFY(image.save(url.toLocalFile()));
+    app.setAvatarFolder(QUrl::fromLocalFile(folder.path()));
+    QCOMPARE(app.avatarFolder().toLocalFile(), folder.path());
+    const auto preset_url = app.profileAvatar();
+    QTest::keyClick(window, Qt::Key_Return);
+    QTRY_VERIFY(window->activeFocusItem() &&
+                window->activeFocusItem()->objectName() == QStringLiteral("dialogAction_0"));
+    QTest::keyClick(window, Qt::Key_Down);
+    QTest::keyClick(window, Qt::Key_Return);
+    QTRY_VERIFY(item("profileAvatarGrid") && item("profileAvatarGrid")->hasActiveFocus());
+    auto* local_avatars = item("profileLocalAvatars");
+    QVERIFY(local_avatars);
+    local_avatars->forceActiveFocus();
+    QTest::keyClick(window, Qt::Key_Return);
+    QTRY_COMPARE(item("profileAvatarGrid")->property("count").toInt(), 1);
+    QTest::keyClick(window, Qt::Key_Down);
+    QTRY_VERIFY(item("profileAvatarGrid")->hasActiveFocus());
+    QTRY_VERIFY(apply->isEnabled());
+    QTest::keyClick(window, Qt::Key_Return);
+    QTRY_VERIFY(app.profileAvatar() != preset_url);
+    QTRY_COMPARE(avatar->property("status").toInt(), 1);
+    QTRY_VERIFY(profile->hasActiveFocus());
+
+    QVERIFY(app.saveProfileName({}, QStringLiteral("Second Player")));
+    QCOMPARE(app.profiles().size(), profiles.size() + 1);
+    const auto second_id =
+        app.profiles().last().toMap().value(QStringLiteral("id")).toString();
+    QVERIFY(app.activateProfile(second_id));
+    QCOMPARE(app.profileName(), QStringLiteral("Second Player"));
+    QVERIFY(app.profileAvatar().isEmpty());
+    QVERIFY(app.activateProfile(id));
+    QVERIFY(app.saveProfileName(id, original_name));
+    QVERIFY(app.saveProfileAvatar(
+        id, QUrl{QStringLiteral("qrc:/horizon/assets/avatars/orbit.svg")}));
+    QCOMPARE(app.profileName(), original_name);
+    QTest::keyClick(window, Qt::Key_F1);
+}
+
 void ConsoleSmoke::verifyHomeGeometry(int game_count) {
     auto* stage = item("consoleStage");
     auto* shelf = item("homeShelf");
     auto* profile = item("homeProfile");
     auto* status = item("homeStatus");
     auto* settings = item("settingsNavigation");
-    auto* browse = item("allSoftwareAction");
     auto* footer = item("consoleFooter");
-    QVERIFY(stage && shelf && profile && status && settings && browse && footer);
+    QVERIFY(stage && shelf && profile && status && settings && footer);
     QCOMPARE(stage->size(), QSizeF(1280, 720));
-    const auto viewport = stage->mapRectToScene(stage->boundingRect());
     const auto window_size = QSizeF(app.window()->size());
     const double scale = qMin(window_size.width() / stage->width(),
                               window_size.height() / stage->height());
+    QTRY_VERIFY(qAbs(stage->scale() - scale) <= 0.001);
+    const auto viewport = stage->mapRectToScene(stage->boundingRect());
     QVERIFY(qAbs(viewport.width() - stage->width() * scale) <= 1);
     QVERIFY(qAbs(viewport.height() - stage->height() * scale) <= 1);
     QVERIFY(qAbs(viewport.center().x() - window_size.width() / 2) <= 1);
@@ -341,12 +431,10 @@ void ConsoleSmoke::verifyHomeGeometry(int game_count) {
     const auto header_left = BoundsIn(profile, stage);
     const auto header_right = BoundsIn(status, stage);
     const auto settings_bounds = BoundsIn(settings, stage);
-    const auto browse_bounds = BoundsIn(browse, stage);
     QVERIFY(!header_left.intersects(header_right));
     QVERIFY(header_left.bottom() <= shelf_bounds.top());
     QVERIFY(header_right.bottom() <= shelf_bounds.top());
-    QVERIFY(shelf_bounds.bottom() <= browse_bounds.top());
-    QVERIFY(browse_bounds.bottom() <= settings_bounds.top());
+    QVERIFY(shelf_bounds.bottom() <= settings_bounds.top());
     QVERIFY(settings_bounds.bottom() <= footer_bounds.top());
     QVERIFY(qAbs(settings_bounds.width() - settings_bounds.height()) <= 1);
     const auto* background = settings->property("background").value<QQuickItem*>();
@@ -469,6 +557,21 @@ void ConsoleSmoke::libraryAndLifecycle() {
         QVERIFY(capture(QStringLiteral("home-light")));
         app.appearance()->setTheme(QStringLiteral("dark"));
 
+        auto* profile = item("homeProfile");
+        QVERIFY(profile);
+        profile->forceActiveFocus();
+        QTest::keyClick(window, Qt::Key_Return);
+        QTRY_VERIFY(item("actionDialogContent") && item("actionDialogContent")->isVisible());
+        QVERIFY(capture(QStringLiteral("profile")));
+        QTest::keyClick(window, Qt::Key_Down);
+        QTest::keyClick(window, Qt::Key_Return);
+        QTRY_VERIFY(item("avatarPickerContent") && item("avatarPickerContent")->isVisible());
+        QVERIFY(capture(QStringLiteral("avatar-picker")));
+        QTest::keyClick(window, Qt::Key_Escape);
+        QTRY_VERIFY(!item("avatarPickerContent") || !item("avatarPickerContent")->isVisible());
+        QTRY_VERIFY(profile->hasActiveFocus());
+        QTest::keyClick(window, Qt::Key_F1);
+
         if (library->count() > 0) {
             auto* shelf = item("homeShelf");
             QVERIFY(shelf && shelf->hasActiveFocus());
@@ -496,7 +599,7 @@ void ConsoleSmoke::libraryAndLifecycle() {
                         window->activeFocusItem()->objectName() == QStringLiteral("dialogAction_0"));
             QTest::keyClick(window, Qt::Key_Escape);
             QTRY_VERIFY(shelf->hasActiveFocus());
-            QVERIFY(app.setSetting(QStringLiteral("options_key"), 0));
+            QVERIFY(app.setSetting(QStringLiteral("options_key"), 1));
             QTest::keyClick(window, Qt::Key_Menu);
             QTRY_VERIFY(window->activeFocusItem() &&
                         window->activeFocusItem()->objectName() == QStringLiteral("dialogAction_0"));
@@ -541,10 +644,7 @@ void ConsoleSmoke::libraryAndLifecycle() {
             QTRY_VERIFY(shelf->hasActiveFocus());
         }
 
-        auto* software = item("allSoftwareAction");
-        QVERIFY(software);
-        software->forceActiveFocus();
-        QTest::keyClick(window, Qt::Key_Return);
+        QTest::keyClick(window, Qt::Key_F2);
         QTRY_VERIFY(item("libraryScreen")->isVisible());
         QVERIFY(capture(QStringLiteral("all-software")));
         app.appearance()->setTheme(QStringLiteral("light"));
@@ -559,7 +659,7 @@ void ConsoleSmoke::libraryAndLifecycle() {
             QTRY_VERIFY(item("softwareOptionsDialog") && item("softwareOptionsDialog")->isVisible());
             QTest::keyClick(window, Qt::Key_Escape);
             QTRY_VERIFY(grid->hasActiveFocus());
-            QVERIFY(app.setSetting(QStringLiteral("options_key"), 0));
+            QVERIFY(app.setSetting(QStringLiteral("options_key"), 1));
         }
         auto* controls = item("libraryControlsAction");
         QVERIFY(controls);
@@ -632,6 +732,13 @@ void ConsoleSmoke::libraryAndLifecycle() {
                               ? QString{}
                               : qEnvironmentVariable("LICHII_CONSOLE_TEST_GAME");
     if (!playable.isEmpty()) {
+        Settings::values.sink_id = Settings::AudioEngine::Null;
+        if (qEnvironmentVariableIntValue("LICHII_CONSOLE_TEST_OPENGL") == 1) {
+            QVERIFY(app.setSetting(
+                QString::fromStdString(Settings::values.renderer_backend.GetLabel()), 1));
+            QCOMPARE(Settings::values.renderer_backend.GetValue(),
+                     Settings::RendererBackend::OpenGL_GLSL);
+        }
         QSignalSpy errors(&app, &ConsoleApp::error);
         QFile invalid(temp.filePath(QStringLiteral("invalid.nro")));
         QVERIFY(invalid.open(QIODevice::WriteOnly));
@@ -652,7 +759,7 @@ void ConsoleSmoke::libraryAndLifecycle() {
         QTest::keyClick(app.window(), Qt::Key_Escape);
 
         QVERIFY(app.setSetting(
-            QString::fromStdString(UISettings::values.confirm_before_stopping.GetLabel()), 2));
+            QString::fromStdString(UISettings::values.confirm_before_stopping.GetLabel()), 0));
         QVERIFY(app.setSetting(
             QString::fromStdString(UISettings::values.pause_when_in_background.GetLabel()), true));
         QString program_id;
@@ -663,8 +770,10 @@ void ConsoleSmoke::libraryAndLifecycle() {
                 break;
             }
         }
+        dismiss.start(25);
         app.launch(playable, program_id);
         QTRY_COMPARE_WITH_TIMEOUT(app.state(), QStringLiteral("running"), 30000);
+        dismiss.stop();
         QTRY_VERIFY(QGuiApplication::focusWindow() &&
                     QGuiApplication::focusWindow() != app.window());
         QTest::keyClick(QGuiApplication::focusWindow(), Qt::Key_F1);
@@ -674,7 +783,34 @@ void ConsoleSmoke::libraryAndLifecycle() {
         QTRY_COMPARE(app.state(), QStringLiteral("running"));
         QTRY_VERIFY(QGuiApplication::focusWindow() &&
                     QGuiApplication::focusWindow() != app.window());
-        app.stop();
+        SDL_VirtualJoystickDesc descriptor;
+        SDL_INIT_INTERFACE(&descriptor);
+        descriptor.type = SDL_JOYSTICK_TYPE_GAMEPAD;
+        descriptor.name = "Lichii game-session test gamepad";
+        descriptor.nbuttons = SDL_GAMEPAD_BUTTON_COUNT;
+        const auto id = SDL_AttachVirtualJoystick(&descriptor);
+        QVERIFY2(id, SDL_GetError());
+        SCOPE_EXIT { SDL_DetachVirtualJoystick(id); };
+        auto* gamepad = SDL_OpenGamepad(id);
+        QVERIFY2(gamepad, SDL_GetError());
+        SCOPE_EXIT { SDL_CloseGamepad(gamepad); };
+        auto* joystick = SDL_GetGamepadJoystick(gamepad);
+        QVERIFY(SDL_SetJoystickVirtualButton(joystick, SDL_GAMEPAD_BUTTON_GUIDE, true));
+        QTRY_COMPARE(app.state(), QStringLiteral("paused"));
+        QTRY_COMPARE(QGuiApplication::focusWindow(), window);
+        QVERIFY(SDL_SetJoystickVirtualButton(joystick, SDL_GAMEPAD_BUTTON_GUIDE, false));
+        QTest::qWait(50);
+        QVERIFY(SDL_SetJoystickVirtualButton(joystick, SDL_GAMEPAD_BUTTON_GUIDE, true));
+        QTRY_VERIFY(window->activeFocusItem() &&
+                    window->activeFocusItem()->objectName() == QStringLiteral("dialogAction_0"));
+        QVERIFY(SDL_SetJoystickVirtualButton(joystick, SDL_GAMEPAD_BUTTON_GUIDE, false));
+        QTest::keyClick(window, Qt::Key_Down);
+        QTest::keyClick(window, Qt::Key_Down);
+        QTest::keyClick(window, Qt::Key_Return);
+        QTRY_VERIFY(window->activeFocusItem() &&
+                    window->activeFocusItem()->objectName() == QStringLiteral("dialogAction_1"));
+        QTest::keyClick(window, Qt::Key_Left);
+        QTest::keyClick(window, Qt::Key_Return);
         QTRY_COMPARE_WITH_TIMEOUT(app.state(), QStringLiteral("idle"), 20000);
         QTRY_COMPARE(QGuiApplication::focusWindow(), app.window());
     } else {

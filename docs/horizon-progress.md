@@ -31,3 +31,12 @@ The core test suite, offscreen console CTest, QML lint, and native Wayland conso
 | Input | Configurable options key, focus history, clickable footer actions, and controller prompts derived from SDL's button labels. |
 | Launch modes | With the console compiled in, Lichii without arguments opens it. Desktop mode is available with `--desktop`. |
 | Visual QA | QtQuick capture and geometry workflow in [tests/horizon_visual](../tests/horizon_visual/README.md). See the [verification record](horizon-visual-fidelity.md). |
+
+## Profile, prompts and game handoff
+
+- F3 is the default software-options key. F2, the clickable footer, and the
+  controller’s north face button open All Software from HOME.
+- HOME shows the active profile picture. The profile menu can create, rename,
+  switch, and set an avatar from original presets or local images.
+- Console launch uses its own status screen. Guide pauses and brings up HOME. Guide
+  again opens Resume and Stop. Wayland keeps the paused game surface mapped.

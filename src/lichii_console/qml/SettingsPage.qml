@@ -18,6 +18,7 @@ Item {
     property bool sliderEditing: false
     property int sliderDraft: 0
     signal backRequested()
+    signal manageProfilesRequested()
     signal folderRequested(string purpose)
     signal resetRequested()
     signal choiceRequested(var row)
@@ -185,7 +186,7 @@ Item {
             appearance.soundPack = ""
             break
         case "configure-controller": backend.configureController(); break
-        case "manage-profiles": backend.manageProfiles(); break
+        case "manage-profiles": manageProfilesRequested(); break
         case "open-user-data": backend.openData("user"); break
         case "open-save-folder": backend.openData("saves"); break
         case "open-logs": backend.openData("log"); break

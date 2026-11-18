@@ -1166,6 +1166,7 @@ void MainWindow::InitializeWidgets() {
         if (emulation_running) {
             render_window->show();
             render_window->setFocus();
+            emit EmulationPresented();
         }
     });
 
@@ -2758,11 +2759,11 @@ bool MainWindow::OnShutdownBegin() {
     LOG_INFO(Frontend, "Shutdown requested; waiting for emulation thread");
     discord_rpc->Pause();
 
-    RequestGameExit();
     QtCommon::emu_thread->disconnect();
-    QtCommon::emu_thread->SetRunning(true);
-
     connect(QtCommon::emu_thread.get(), &QThread::finished, this, &MainWindow::OnEmulationStopped);
+    // A paused guest can hold the applet manager lock used by RequestGameExit.
+    QtCommon::emu_thread->SetRunning(true);
+    RequestGameExit();
     emit EmulationStopping();
 
     int shutdown_time = 1000;
@@ -3893,12 +3894,16 @@ void MainWindow::OnPauseContinueGame() {
 
 void MainWindow::OnStopGame() {
     if (ConfirmShutdownGame()) {
-        play_time_manager->Stop();
-        if (OnShutdownBegin()) {
-            OnShutdownBeginDialog();
-        } else {
-            OnEmulationStopped();
-        }
+        StopConfirmedGame();
+    }
+}
+
+void MainWindow::StopConfirmedGame(bool show_shutdown_dialog) {
+    play_time_manager->Stop();
+    if (!OnShutdownBegin()) {
+        OnEmulationStopped();
+    } else if (show_shutdown_dialog) {
+        OnShutdownBeginDialog();
     }
 }
 
@@ -4159,6 +4164,15 @@ void MainWindow::ToggleWindowMode() {
             render_window->RestoreGeometry();
             game_list->show();
         }
+    }
+}
+
+void MainWindow::SetConsolePresentation(bool enabled) {
+    ui->menubar->setVisible(!enabled);
+    statusBar()->setVisible(!enabled && ui->action_Show_Status_Bar->isChecked());
+    if (!emulation_running) {
+        game_list->setVisible(!enabled && !game_list->IsEmpty());
+        game_list_placeholder->setVisible(!enabled && game_list->IsEmpty());
     }
 }
 

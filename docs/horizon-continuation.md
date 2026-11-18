@@ -129,7 +129,7 @@ from the actual Qt Quick app.
 
 HOME uses a left-anchored square-cover shelf, a profile at the upper left,
 compact status at the upper right, and a centered circular system row.
-All Software lives below the shelf. Settings supports separate category
+All Software is accessible through the footer and shortcuts. Settings supports separate category
 and value focus, keyboard slider adjustment, and mouse track selection.
 All Software keeps search, sorting, favorites, game details, and per-title
 actions. Dialogs follow the fixed stage scale. Control prompts update for
